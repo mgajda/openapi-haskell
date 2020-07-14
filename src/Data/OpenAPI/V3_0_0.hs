@@ -1117,11 +1117,14 @@ instance FromJSON Parameter where
     <*> v .:? "style"
     <*> v .:? "explode"
     <*> v .:? "allowReserved"
-    <*> v .:? "schema"
+    <*> ((v .:? "schema") >>= v1Schema v)
     <*> v .:? "content"
     <*> v .:? "example"
     <*> v .:? "examples"
     <*> (pure (xify v))
+
+v1Schema v Nothing = parseJSON $ Object v
+v1Schema _ found   = pure found
 
 -- |Response description headers content links x
 data Response = Response {_response_description :: Text, _response_headers :: (Maybe (HashMap Text (ReferenceOr Header))), _response_content :: (Maybe (HashMap Text MediaType)), _response_links :: (Maybe (HashMap Text (ReferenceOr Link))), _response_x :: (Maybe (HashMap Text Value)) } deriving (Eq)

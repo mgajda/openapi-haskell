@@ -64,3 +64,7 @@ main = hspec $ do
             let step0 = (decode (encode oai) :: Maybe OpenAPIObject)
             let step1 = (encode <$> step0) >>= decode
             (step1 >>= (preview testLensSlack)) `shouldBe` Just "File contents via `multipart/form-data`."
+    context "when parsing sendgrid spec" $ do
+      before (readOpenAPI "oai/stripe.yaml") $ do
+        it "has version 3.0.0" $ \oai -> do
+          getOpenAPIObjectOpenapi oai `shouldBe` "3.0.0"
