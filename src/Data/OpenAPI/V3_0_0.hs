@@ -1123,7 +1123,7 @@ instance FromJSON Parameter where
     <*> v .:? "examples"
     <*> (pure (xify v))
 
-v1Schema v Nothing = parseJSON $ Object $ filterWithKey (\k v -> k `notElem` forbiddenKeys) v
+v1Schema v Nothing = prependFailure "when parsing naked schema" $ parseJSON $ Object $ filterWithKey (\k v -> k `notElem` forbiddenKeys) v
   where
     forbiddenKeys = ["required", "name", "description"]
 v1Schema _ found   = pure found
