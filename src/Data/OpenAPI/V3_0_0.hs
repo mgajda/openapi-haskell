@@ -390,8 +390,26 @@ instance ToJSON OpenAPIObject where
   toJSON (OpenAPIObject _openapi _info _paths _externalDocs _servers _security _tags _components _x) =
     object $ ["openapi" .= _openapi] ++ ["info" .= _info] ++ ["paths" .= _paths] ++ (maybe [] (\x -> ["externalDocs" .= x]) _externalDocs) ++ (maybe [] (\x -> ["servers" .= x]) _servers) ++ (maybe [] (\x -> ["security" .= x]) _security) ++ (maybe [] (\x -> ["tags" .= x]) _tags) ++ (maybe [] (\x -> ["components" .= x]) _components) ++ (maybe [] (HM.toList . (HM.map toJSON)) _x)
 
+mappendJust :: Monoid m => Maybe m -> Maybe m -> Maybe m
+mappendJust Nothing  (Just a) = Just a
+mappendJust (Just a) Nothing  = Just a
+mappendJust (Just a) (Just b) = Just $ a <> b
+mappendJust Nothing  Nothing  = Nothing
+
 instance FromJSON OpenAPIObject where
-  parseJSON = withObject "OpenAPIObject" $ \v -> OpenAPIObject
+  parseJSON = withObject "OpenAPIObject" $ \v ->
+    let topParameters :: Parser (Maybe (HashMap Text (ReferenceOr Parameter))) = v .:? "parameters"
+        componentsWithTopParameters :: Parser (Maybe Components)
+        componentsWithTopParameters = addToComponents <$> topParameters <*> (v .:?  "components")
+        addToComponents :: Maybe (HashMap Text (ReferenceOr Parameter)) -> Maybe Components -> Maybe Components
+        addToComponents topPs maybeComponents =
+            Just $ c { _components_parameters = ps `mappendJust` topPs }
+          where
+            c@Components { _components_parameters = ps } =
+              case maybeComponents of
+                Nothing  -> emptyComponents
+                Just cos -> cos
+    in OpenAPIObject
     <$> v .:? "openapi" .!= "2.0"
     <*> v .: "info"
     <*> v .: "paths"
@@ -399,8 +417,9 @@ instance FromJSON OpenAPIObject where
     <*> v .:? "servers"
     <*> v .:? "security"
     <*> v .:? "tags"
-    <*> v .:? "components"
+    <*> componentsWithTopParameters
     <*> (pure (xify v))
+
 
 -- |Server url description variables x
 data Server = Server {_server_url :: Text, _server_description :: (Maybe Text), _server_variables :: (Maybe (HashMap Text ServerVariable)), _server_x :: (Maybe (HashMap Text Value)) } deriving (Eq)
@@ -586,6 +605,9 @@ instance FromJSON Info where
 
 -- |Components schemas responses parameters examples requestBodies headers securitySchemes links callbacks x
 data Components = Components {_components_schemas :: (Maybe (HashMap Text (ReferenceOr Schema))), _components_responses :: (Maybe (HashMap Text (ReferenceOr Response))), _components_parameters :: (Maybe (HashMap Text (ReferenceOr Parameter))), _components_examples :: (Maybe (HashMap Text (ReferenceOr Example))), _components_requestBodies :: (Maybe (HashMap Text (ReferenceOr RequestBody))), _components_headers :: (Maybe (HashMap Text (ReferenceOr Header))), _components_securitySchemes :: (Maybe (HashMap Text SecuritySchema)), _components_links :: (Maybe (HashMap Text (ReferenceOr Link))), _components_callbacks :: (Maybe (HashMap Text (ReferenceOr (HashMap Text PathItem)))), _components_x :: (Maybe (HashMap Text Value)) } deriving (Eq)
+
+emptyComponents :: Components
+emptyComponents = Components Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
 
 getComponentsSchemas :: Components -> Maybe (HashMap Text (ReferenceOr Schema))
 getComponentsSchemas = _components_schemas
